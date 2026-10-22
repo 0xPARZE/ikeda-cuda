@@ -32,7 +32,8 @@ from plot_bifurcation import density_image  # noqa: E402
 import slide_style as st  # noqa: E402
 
 B_RANGE = (0.30, 0.92)  # B > 0.903: the orbit from z_0 = 0 jumps to a coexisting focus
-ZOOM = (0.12, 0.42, -0.66, -0.26)  # Re min, Re max, Im min, Im max of the zoomed attractor panel
+ZOOM = (0.12, 0.42, -0.66, -0.26)
+BOX_EPS = 0.125  # box size drawn in the box-counting illustration  # Re min, Re max, Im min, Im max of the zoomed attractor panel
 
 
 def columns(s: Sweep, lo: float, hi: float) -> np.ndarray:
@@ -101,17 +102,19 @@ def bifurcation_slim(s: Sweep, th: dict, out: Path) -> None:
     plt.close(fig)
 
 
-def attractor_density(ax, x, y, extent, bins):
+def attractor_density(ax, x, y, extent, bins, aspect="auto"):
+    """Log-density image of an orbit. The phase-space panels use square axes
+    (aspect="auto"), as in the original deck. The attractor is 1.5x taller than
+    it is wide, so its x-axis is stretched to fill the square."""
     h, _, _ = np.histogram2d(x, y, bins=bins, range=[extent[:2], extent[2:]])
     ax.imshow(h.T, origin="lower", extent=extent, cmap=st.DENSITY, norm=LogNorm(vmin=1, vmax=max(h.max(), 2)),
-              interpolation="antialiased", rasterized=True)
-    ax.set_aspect("equal")
+              interpolation="antialiased", rasterized=True, aspect=aspect)
 
 
 def phase_space(s: Sweep, out: Path) -> None:
     x, y = np.asarray(s.x[:, 0]), np.asarray(s.y[:, 0])
     full = (-0.45, 1.75, -2.35, 0.95)
-    size = (0.46 * st.TEXT_WIDTH, 5.3 * st.CM)
+    size = (5.4 * st.CM, 5.3 * st.CM)  # square plotting area
 
     fig, ax = plt.subplots(figsize=size)
     attractor_density(ax, x, y, full, 900)
@@ -141,11 +144,46 @@ def phase_space(s: Sweep, out: Path) -> None:
     rgba = np.zeros((*alpha.shape, 4))
     rgba[..., :3] = matplotlib.colors.to_rgb(st.SECTIONBOX)
     rgba[..., 3] = alpha
-    ax.imshow(rgba, origin="lower", extent=full, interpolation="antialiased")
-    ax.set_aspect("equal")
+    ax.imshow(rgba, origin="lower", extent=full, interpolation="antialiased", aspect="auto")
     ax.axis("off")
     fig.savefig(out / "section_chaos.png", transparent=True, bbox_inches=None, pad_inches=0)
     plt.close(fig)
+
+
+def box_grid(s: Sweep, out: Path, eps: float = BOX_EPS) -> int:
+    """Box counting illustrated: the attractor covered by a grid of eps x eps
+    boxes, with occupied boxes shaded. Drawn with equal axis scaling so the
+    boxes appear square, as the algorithm uses them."""
+    x, y = np.asarray(s.x[:, 0]), np.asarray(s.y[:, 0])
+    x0, y0 = x.min(), y.min()  # same grid origin as box_counts()
+    ix = np.floor((x - x0) / eps).astype(int)
+    iy = np.floor((y - y0) / eps).astype(int)
+    occupied = np.zeros((ix.max() + 1, iy.max() + 1), dtype=bool)
+    occupied[ix, iy] = True
+    nx, ny = occupied.shape
+
+    fig, ax = plt.subplots(figsize=(4.4 * st.CM, 5.3 * st.CM))
+    for i, j in zip(*np.nonzero(occupied)):
+        ax.add_patch(Rectangle((x0 + i * eps, y0 + j * eps), eps, eps, facecolor=st.ACCENT, alpha=0.3,
+                               edgecolor="none", zorder=1))
+    for i in range(nx + 1):
+        ax.plot([x0 + i * eps] * 2, [y0, y0 + ny * eps], color=st.BLUEGRAY, linewidth=0.25, alpha=0.6, zorder=2)
+    for j in range(ny + 1):
+        ax.plot([x0, x0 + nx * eps], [y0 + j * eps] * 2, color=st.BLUEGRAY, linewidth=0.25, alpha=0.6, zorder=2)
+    extent = (x0, x0 + nx * eps, y0, y0 + ny * eps)
+    h, _, _ = np.histogram2d(x, y, bins=(nx * 24, ny * 24), range=[extent[:2], extent[2:]])
+    shown = np.ma.masked_equal(h.T, 0)
+    see_through = st.DENSITY.with_extremes(bad=(0, 0, 0, 0), under=(0, 0, 0, 0))  # empty cells show the grid
+    ax.imshow(shown, origin="lower", extent=extent, cmap=see_through, norm=LogNorm(vmin=1, vmax=h.max()),
+              interpolation="antialiased", rasterized=True, zorder=3)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.set_aspect("equal")
+    ax.set_xlabel(r"Re$(z_n)$")
+    ax.set_ylabel(r"Im$(z_n)$")
+    fig.savefig(out / "Box_Counting_Grid.png")
+    plt.close(fig)
+    return int(occupied.sum())
 
 
 def fractal(s: Sweep, out: Path) -> tuple[float, float]:
@@ -243,8 +281,10 @@ def main() -> None:
     title_cascade(bif, out)
     phase_space(att, out)
     d0, dky = fractal(att, out)
+    n_boxes = box_grid(att, out)
     scaling(Path(args.bench), out)
-    print(f"B_inf ~ {feigenbaum_limit(th['period_doubling']):.6f}, D0 = {d0:.3f}, D_KY = {dky:.3f}")
+    print(f"B_inf ~ {feigenbaum_limit(th['period_doubling']):.6f}, D0 = {d0:.3f}, D_KY = {dky:.3f}, "
+          f"N(eps={BOX_EPS}) = {n_boxes}")
     print(f"wrote slide figures to {out}/")
 
 

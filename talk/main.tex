@@ -481,7 +481,7 @@
     \vspace{-0.2cm}
     \begin{center}
         \includegraphics[width=0.95\textwidth]{Bifurcation_Magnitude.png} \\[0.2cm]
-        {\footnotesize \textit{Period-doubling cascade of the field amplitude: 8,000 values of $B$ $\times$ 1,000 recorded round trips.}}
+        {\footnotesize \textit{8,000 values of $B$. White stripes are periodic windows, e.g.\ period 5 at $B \approx 0.805$.}}
     \end{center}
 \end{frame}
 
@@ -574,8 +574,8 @@
         % Left Image: The Strange Attractor
         \begin{column}{0.48\textwidth}
             \centering
-            \includegraphics[height=5.0cm]{Phase_Space.png} \\
-            {\footnotesize \textit{Strange attractor, $B = 0.9$}}
+            \includegraphics[height=5.0cm]{Box_Counting_Grid.png} \\
+            {\footnotesize \textit{Boxes of side $\epsilon = 0.125$: $N(\epsilon) = 284$ occupied (shaded)}}
         \end{column}
         
         % Right Image: Log-Log Plot
@@ -669,7 +669,7 @@
         \begin{itemize}
             \setlength{\itemsep}{0.1cm}
             \item \textbf{HPC Optimization:} A 2D real-valued map with one GPU thread per $B$ runs $11.6\times$ (FP64) to $215\times$ (FP32) faster than 12-thread C++.
-            \item \textbf{Quantifying Chaos:} Jacobian-derived Lyapunov exponents and box counting confirm chaos past $B_\infty \approx 0.6463$; at $B = 0.9$, $\lambda_1 = 0.507$ and $D_{KY} = 1.707$ match published values.
+            \item \textbf{Quantifying Chaos:} Jacobian-derived Lyapunov exponents and box counting confirm chaos past $B_\infty \approx 0.6463$; at $B = 0.9$, $\lambda_1 = 0.5075$ and $D_{KY} = 1.707$ match published values.
             \item \textbf{Theoretical Limits:} The delayed map destabilises at $B_1 = 0.4027$, far below the CW bistability threshold $B_{cw} = 0.7084$, and its cascade reproduces Feigenbaum's $\delta$ to 0.1\%.
         \end{itemize}
     \end{customblock}

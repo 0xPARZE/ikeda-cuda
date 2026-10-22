@@ -40,7 +40,7 @@ def apply_style() -> None:
             "axes.edgecolor": INK_MUTED,
             "axes.labelcolor": INK_SECONDARY,
             "axes.titlecolor": INK,
-            "axes.titleweight": "semibold",
+            "axes.titleweight": "bold",
             "axes.titlesize": 12,
             "axes.labelsize": 10.5,
             "axes.spines.top": False,

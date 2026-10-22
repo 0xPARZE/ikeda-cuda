@@ -27,7 +27,7 @@ def main() -> None:
     x, y = np.asarray(s.x[:, 0]), np.asarray(s.y[:, 0])
     B, lam = s.B[0], s.lyapunov[0]
 
-    fig, ax = plt.subplots(figsize=(5.2, 6.4))
+    fig, ax = plt.subplots(figsize=(6.2, 6.0))
     h, xe, ye = np.histogram2d(x, y, bins=args.bins)
     ax.imshow(
         h.T,
@@ -38,12 +38,13 @@ def main() -> None:
         interpolation="antialiased",
         rasterized=True,
     )
-    ax.set_aspect("equal")
+    # Square axes: the attractor is ~1.5x taller than wide, so Re is stretched (see tick labels).
+    ax.set_aspect("auto")
     ax.grid(False)
     ax.set_xlabel(r"Re $z_n$")
     ax.set_ylabel(r"Im $z_n$")
     ax.set_title(rf"Strange attractor, $B = {B:g}$", loc="left")
-    ax.text(0.98, 0.52, f"{len(x):,} round trips\n" + rf"$\lambda_1 = {lam:.3f}$", transform=ax.transAxes,
+    ax.text(0.98, 0.52, f"{len(x):,} round trips\n" + rf"$\lambda_1 = {lam:.4f}$", transform=ax.transAxes,
             ha="right", va="center", color=INK_SECONDARY)
     FIGURES.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out)

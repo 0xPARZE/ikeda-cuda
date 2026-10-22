@@ -9,7 +9,7 @@
 
 ![Bifurcation diagram and Lyapunov spectrum of the Ikeda map](docs/figures/bifurcation_magnitude.png)
 
-*8000 values of the mirror reflectivity B × 1000 recorded round trips each, a 71 ms FP64 kernel on the GPU. Top: density of the cavity field |z|. Bottom: the largest Lyapunov exponent λ, positive (chaotic) where shaded. Dotted lines: the period-doubling thresholds B₁–B₃ computed by Newton continuation. Dashed line: the CW bistability threshold. Re z and Im z versions: [real](docs/figures/bifurcation_real.png), [imaginary](docs/figures/bifurcation_imag.png).*
+*8000 values of the mirror reflectivity B × 1000 recorded round trips each, a 71 ms FP64 kernel on the GPU. Top: density of the cavity field |z|. Bottom: the largest Lyapunov exponent λ, positive (chaotic) where shaded. The white stripes inside the chaotic band are periodic windows, where the orbit locks onto a stable cycle (λ < 0); the widest is a period-5 window at B ≈ 0.802–0.809. Dotted lines: the period-doubling thresholds B₁–B₃ computed by Newton continuation. Dashed line: the CW bistability threshold. Re z and Im z versions: [real](docs/figures/bifurcation_real.png), [imaginary](docs/figures/bifurcation_imag.png).*
 
 ## The physics
 
