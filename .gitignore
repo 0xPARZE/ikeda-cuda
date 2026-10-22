@@ -1,0 +1,26 @@
+# Build trees
+build/
+build-*/
+cmake-build-*/
+out/
+*.o
+*.a
+*.so
+
+# Generated data (regenerate with scripts/make_figures.sh)
+*.npy
+*.csv
+!benchmarks/results/*.csv
+
+# Python
+__pycache__/
+*.pyc
+.venv*/
+.ipynb_checkpoints/
+
+# Editors / OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+*:Zone.Identifier

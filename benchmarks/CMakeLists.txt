@@ -1,0 +1,5 @@
+add_executable(ikeda_bench bench_sweep.cpp)
+target_link_libraries(ikeda_bench PRIVATE ${IKEDA_BACKEND} ikeda_warnings)
+if(OpenMP_CXX_FOUND)
+    target_link_libraries(ikeda_bench PRIVATE OpenMP::OpenMP_CXX)
+endif()
