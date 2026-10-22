@@ -152,8 +152,8 @@ def phase_space(s: Sweep, out: Path) -> None:
 
 def box_grid(s: Sweep, out: Path, eps: float = BOX_EPS) -> int:
     """Box counting illustrated: the attractor covered by a grid of eps x eps
-    boxes, with occupied boxes shaded. Drawn with equal axis scaling so the
-    boxes appear square, as the algorithm uses them."""
+    boxes, with occupied boxes shaded. Uses the same square axes as the other
+    phase-space panels, so Re is stretched and the boxes look slightly wide."""
     x, y = np.asarray(s.x[:, 0]), np.asarray(s.y[:, 0])
     x0, y0 = x.min(), y.min()  # same grid origin as box_counts()
     ix = np.floor((x - x0) / eps).astype(int)
@@ -162,7 +162,7 @@ def box_grid(s: Sweep, out: Path, eps: float = BOX_EPS) -> int:
     occupied[ix, iy] = True
     nx, ny = occupied.shape
 
-    fig, ax = plt.subplots(figsize=(4.4 * st.CM, 5.3 * st.CM))
+    fig, ax = plt.subplots(figsize=(5.4 * st.CM, 5.3 * st.CM))  # same as Phase_Space.png
     for i, j in zip(*np.nonzero(occupied)):
         ax.add_patch(Rectangle((x0 + i * eps, y0 + j * eps), eps, eps, facecolor=st.ACCENT, alpha=0.3,
                                edgecolor="none", zorder=1))
@@ -175,10 +175,10 @@ def box_grid(s: Sweep, out: Path, eps: float = BOX_EPS) -> int:
     shown = np.ma.masked_equal(h.T, 0)
     see_through = st.DENSITY.with_extremes(bad=(0, 0, 0, 0), under=(0, 0, 0, 0))  # empty cells show the grid
     ax.imshow(shown, origin="lower", extent=extent, cmap=see_through, norm=LogNorm(vmin=1, vmax=h.max()),
-              interpolation="antialiased", rasterized=True, zorder=3)
+              interpolation="antialiased", rasterized=True, zorder=3, aspect="auto")
     ax.set_xlim(extent[0], extent[1])
     ax.set_ylim(extent[2], extent[3])
-    ax.set_aspect("equal")
+    ax.set_aspect("auto")
     ax.set_xlabel(r"Re$(z_n)$")
     ax.set_ylabel(r"Im$(z_n)$")
     fig.savefig(out / "Box_Counting_Grid.png")
