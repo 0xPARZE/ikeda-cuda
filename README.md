@@ -72,8 +72,8 @@ Computed with `ikeda_thresholds` (Newton continuation of periodic orbits, A = 1,
 | B₆: period 32 → 64 | 0.6461976806 |
 | Feigenbaum ratio δₖ = (Bₖ − Bₖ₋₁)/(Bₖ₊₁ − Bₖ) | 4.388, 4.697, 4.731, **4.666** (δ = 4.6692, so 99.9%) |
 | CW bistability threshold B_cw (three steady states appear) | 0.7083763219 |
-| Lyapunov exponents at B = 0.9 | λ₁ = 0.507, λ₂ = 2 ln B − λ₁ = −0.718 (Sprott & Xiong 2015: 0.5076, −0.7183) |
-| Attractor dimension at B = 0.9: box counting D₀ / Kaplan–Yorke D_KY | 1.708 / 1.706 (Sprott & Xiong 2015: D_KY = 1.7066) |
+| Lyapunov exponents at B = 0.9 (2·10⁷ round trips) | λ₁ = 0.5075, λ₂ = 2 ln B − λ₁ = −0.7182 (Sprott & Xiong 2015: 0.5076, −0.7183) |
+| Attractor dimension at B = 0.9: box counting D₀ / Kaplan–Yorke D_KY | 1.720 / 1.707 (Sprott & Xiong 2015: D_KY = 1.7066) |
 
 **The headline physics result.** The cavity's steady state loses stability at B₁ ≈ 0.403 and is fully chaotic past B∞ ≈ 0.6463, while CW theory predicts no instability at all until B_cw ≈ 0.708. The delayed-feedback map is therefore essential, which is Ikeda's original point.
 
@@ -86,7 +86,7 @@ Computed with `ikeda_thresholds` (Newton continuation of periodic orbits, A = 1,
 
 *Additive complex Gaussian noise (σ = 0.005 per round trip) blurs the high-order period doublings and periodic windows. Noise samples come from a counter-based RNG, so this figure reproduces bit for bit from its seed.*
 
-**Talk:** *Optical Turbulence in the Ikeda Map: High-Performance Computing and Chaos Theory*, presented at [Theory Canada](https://cap.ca/congress-conference/theory-canada/), Université de Montréal, June 2026.
+**Talk:** *Optical Turbulence in the Ikeda Map: High-Performance Computing and Chaos Theory*, presented at [Theory Canada](https://cap.ca/congress-conference/theory-canada/), Université de Montréal, June 2026. **[Slides (PDF)](talk/slides.pdf)**. The LaTeX source and the scripts that regenerate every slide figure from this code are in [`talk/`](talk).
 
 ## Build and run
 
@@ -125,6 +125,7 @@ python3 -m pip install -r scripts/requirements.txt
 ./build/benchmarks/ikeda_bench benchmarks/results/latest.csv       # C++/CUDA benchmarks
 python3 benchmarks/bench_python.py benchmarks/results/latest.csv   # Python baselines (appends)
 python3 scripts/plot_benchmarks.py benchmarks/results/latest.csv   # plot + markdown table
+./talk/build.sh                                                    # slide deck (needs pdflatex + latexmk)
 ```
 
 ## Design decisions
@@ -191,6 +192,7 @@ src/apps/        ikeda_sweep (CLI), ikeda_thresholds
 tests/           GoogleTest suites: analytic, CPU, GPU-vs-CPU, I/O
 benchmarks/      ikeda_bench (C++/CUDA), bench_python.py (Python baselines), results/
 configs/         run settings for every figure
+talk/            Theory Canada slides: LaTeX source, figure + animation scripts, build.sh, slides.pdf
 scripts/         plotting, box-counting dimension, make_figures.sh
 docs/figures/    images used in this README
 ```

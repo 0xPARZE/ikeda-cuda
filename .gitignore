@@ -3,6 +3,8 @@ build/
 build-*/
 cmake-build-*/
 out/
+talk/build/
+talk/figures/
 *.o
 *.a
 *.so
