@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  # Build and test the CPU reference with warnings as errors, under both GCC
+  # and Clang.
+  cpu:
+    name: CPU build + tests (${{ matrix.compiler }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - compiler: gcc
+            cxx: g++
+          - compiler: clang
+            cxx: clang++
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install OpenMP for Clang
+        if: matrix.compiler == 'clang'
+        run: sudo apt-get update && sudo apt-get install -y libomp-dev
+      - name: Configure
+        run: cmake --preset cpu-only -DCMAKE_CXX_COMPILER=${{ matrix.cxx }} -DIKEDA_NATIVE_CPU=OFF
+      - name: Build
+        run: cmake --build --preset cpu-only -j
+      - name: Test
+        run: ctest --preset cpu-only -j
+
+  # GitHub's hosted runners have no GPU, so this job compiles the CUDA backend
+  # and runs everything it can: the CPU tests run, and the GPU tests report
+  # "skipped".
+  cuda-build:
+    name: CUDA compile (nvcc 12.6, sm_75/86/89)
+    runs-on: ubuntu-24.04
+    container: nvidia/cuda:12.6.3-devel-ubuntu24.04
+    steps:
+      - name: Install build tools
+        run: apt-get update && apt-get install -y --no-install-recommends cmake g++ git ca-certificates
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >
+          cmake -S . -B build -DIKEDA_ENABLE_CUDA=ON -DIKEDA_WARNINGS_AS_ERRORS=ON
+          -DIKEDA_NATIVE_CPU=OFF -DCMAKE_CUDA_ARCHITECTURES="75;86;89"
+      - name: Build
+        run: cmake --build build -j
+      - name: Test (GPU tests skip without a device)
+        run: ctest --test-dir build --output-on-failure -j
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting
+        run: |
+          pip install clang-format==19.1.7
+          find include src tests benchmarks \( -name '*.hpp' -o -name '*.cpp' -o -name '*.cu' -o -name '*.cuh' \) \
+            | xargs clang-format --dry-run --Werror
