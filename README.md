@@ -1,6 +1,6 @@
 # ikeda-cuda
 
-**GPU-accelerated parameter sweeps of the Ikeda map, a model of optical turbulence in a nonlinear ring cavity. The CUDA backend sweeps 10⁶ cavity configurations 11.6× (FP64) to 215× (FP32) faster than 12-thread C++. A Newton-continuation analysis of the same map recovers Feigenbaum's constant to 0.1%.**
+**Why does light trapped in a nonlinear ring cavity turn chaotic long before classical theory says it should? This repository answers that question numerically. It sweeps the Ikeda map across a million cavity configurations on the GPU, 11.6× (FP64) to 215× (FP32) faster than 12-thread C++, and pins down the route to chaos with Newton continuation, recovering Feigenbaum's universal constant to 0.1%.**
 
 [![CI](https://github.com/0xPARZE/ikeda-cuda/actions/workflows/ci.yml/badge.svg)](https://github.com/0xPARZE/ikeda-cuda/actions/workflows/ci.yml)
 ![C++20](https://img.shields.io/badge/C%2B%2B-20-blue)
@@ -11,17 +11,79 @@
 
 *8000 values of the mirror reflectivity B × 1000 recorded round trips each, a 71 ms FP64 kernel on the GPU. Top: density of the cavity field |z|. Bottom: the largest Lyapunov exponent λ, positive (chaotic) where shaded. The white stripes inside the chaotic band are periodic windows, where the orbit locks onto a stable cycle (λ < 0); the widest is a period-5 window at B ≈ 0.802–0.809. Dotted lines: the period-doubling thresholds B₁–B₃ computed by Newton continuation. Dashed line: the CW bistability threshold. Re z and Im z versions: [real](docs/figures/bifurcation_real.png), [imaginary](docs/figures/bifurcation_imag.png).*
 
-## The physics
+## 1. The problem
 
-Light circulating in a ring cavity that contains a Kerr medium picks up an intensity-dependent phase on every round trip. Ikeda (1979) showed that, because of the round-trip delay, the field is described by a discrete map rather than a differential equation:
+A ring cavity is a loop of mirrors that light circulates around. Each round trip, part of the beam leaks out through the mirrors, fresh laser light A is injected, and the light that remains, a fraction B set by the mirror reflectivity, passes through a Kerr medium. That medium shifts the light's phase by an amount that depends on its own intensity. The output can therefore feed back on itself.
+
+Before 1979, such cavities were analysed with **continuous-wave (CW) theory**, which looks only for steady states, fields that come back unchanged after every round trip. CW theory predicts that the cavity behaves calmly until the steady-state curve folds over into **optical bistability**, two stable outputs for the same input.
+
+Ikeda (1979) pointed out that this ignores the **round-trip delay**: the field arriving now was set one trip ago. Taking the delay seriously turns the physics into a discrete map:
 
 $$z_{n+1} = A + B\,z_n \exp\!\left[i\left(\phi - \frac{p}{1+|z_n|^2}\right)\right]$$
 
-Here A is the input field, B the mirror reflectivity, and φ and p the linear and nonlinear phase shifts. As B increases, the steady output period-doubles (1 → 2 → 4 → 8 → …) and then becomes chaotic ("optical turbulence"). This happens far below the point where classical continuous-wave (CW) theory predicts any instability. Mapping that route takes thousands of independent orbits, one per value of B, each thousands of iterations long, plus a Lyapunov exponent for every orbit. The orbits are independent of one another, which makes the problem a natural fit for a GPU.
+Here z_n is the complex field after the n-th round trip, φ is the linear phase shift, and p is the nonlinear (Kerr) phase shift. A map like this can do things a steady-state analysis can't see: it can oscillate, and it can become **chaotic** ("optical turbulence").
 
-## Results
+## 2. The question
 
-### Performance
+> **As the mirror reflectivity B increases, when and how does the cavity's output stop being steady, and does CW theory predict it correctly?**
+
+Concretely, for the classic cavity (A = 1, p = 6, φ = 0.4):
+
+1. **When** does the steady output first lose stability, and by what route does it reach chaos?
+2. **How chaotic** is the result? How fast do nearby states diverge (the Lyapunov exponent λ), and what is the geometry of the strange attractor (its fractal dimension)?
+3. **How does that compare** with the CW bistability threshold, the only instability CW theory knows about?
+
+Answering these is a computational problem. One orbit is cheap, but a bifurcation diagram needs thousands to millions of values of B, each iterated for thousands of round trips with a Lyapunov exponent alongside. So there is a second question underneath the first: **can we make this sweep fast enough to resolve fine structure, and still trust every number it produces?**
+
+## 3. The approach
+
+Three complementary tools, each of which checks the others:
+
+* **A GPU parameter sweep (brute force).** Every value of B is an independent orbit, so each CUDA thread owns one B and iterates it entirely in registers. The complex map is rewritten as a 2D real system, a rotation, contraction and shift costing one `sincos` per step. A closed-form Jacobian gives the Lyapunov exponent for about 10 extra FLOPs per step. This produces the bifurcation diagrams and λ(B) ([design decisions](#design-decisions)).
+* **Newton continuation (exact thresholds).** Brute force can't locate a bifurcation precisely, since orbits converge slowly near one. A separate CPU tool finds each periodic orbit with Newton's method, tracks it as B increases, and bisects on the point where its stability multiplier crosses −1. It also solves the CW steady-state equation directly to find where bistability appears.
+* **Validation (trust).** The GPU kernel and an OpenMP C++ reference share one source file for the physics. 40 tests check both against exact identities (det J = B², λ = ln B where the fixed point is a stable focus), against the Newton results, against each other, and against published values ([validation](#validation)).
+
+## 4. The answer
+
+**The cavity goes unstable far earlier than CW theory predicts, and it follows the universal period-doubling route to chaos.**
+
+* The steady output first loses stability at **B₁ = 0.4027**, splitting into a period-2 oscillation.
+* It then period-doubles (2 → 4 → 8 → …) at thresholds that accumulate at **B∞ ≈ 0.6463**, beyond which the output is chaotic (λ > 0), apart from narrow periodic windows.
+* CW theory predicts no instability at all until bistability appears at **B_cw = 0.7084**. By then the real cavity has been unstable for a long stretch of B and is already chaotic. The delay is essential, which was Ikeda's point.
+* The doubling thresholds converge geometrically, with ratio **δ₄ = 4.666**. That is Feigenbaum's universal constant δ = 4.6692 to within 0.1%: the Ikeda cavity belongs to the same universality class as the logistic map.
+* At B = 0.9 the attractor has Lyapunov exponents **λ = (0.5075, −0.7182)** and fractal dimension **D ≈ 1.71**, matching the published values (0.5076, −0.7183; 1.7066).
+
+**And the computation is both fast and trustworthy.** A sweep of 2²⁰ values of B takes 0.57 s on the GPU in FP64 and 0.023 s in FP32, against 6.65 s and 5.01 s on 12 CPU threads: **11.6× and 215×** faster at equal precision. In FP64 the GPU and CPU agree to 10⁻¹⁰ wherever the dynamics are not chaotic, and on the same Lyapunov exponents where they are.
+
+The evidence for each claim follows.
+
+## Results: the physics
+
+Computed with `ikeda_thresholds` (Newton continuation of periodic orbits, A = 1, p = 6, φ = 0.4):
+
+| Quantity | Value |
+|---|---|
+| B₁: fixed point → period 2 | 0.4027006301 |
+| B₂: period 2 → 4 | 0.5916237064 |
+| B₃: period 4 → 8 | 0.6346773712 |
+| B₄: period 8 → 16 | 0.6438446321 |
+| B₅: period 16 → 32 | 0.6457823868 |
+| B₆: period 32 → 64 | 0.6461976806 |
+| Feigenbaum ratio δₖ = (Bₖ − Bₖ₋₁)/(Bₖ₊₁ − Bₖ) | 4.388, 4.697, 4.731, **4.666** (δ = 4.6692, so 99.9%) |
+| CW bistability threshold B_cw (three steady states appear) | 0.7083763219 |
+| Lyapunov exponents at B = 0.9 (2·10⁷ round trips) | λ₁ = 0.5075, λ₂ = 2 ln B − λ₁ = −0.7182 (Sprott & Xiong 2015: 0.5076, −0.7183) |
+| Attractor dimension at B = 0.9: box counting D₀ / Kaplan–Yorke D_KY | 1.720 / 1.707 (Sprott & Xiong 2015: D_KY = 1.7066) |
+
+<p align="center">
+  <img src="docs/figures/attractor.png" width="48%" alt="Ikeda strange attractor density at B = 0.9">
+  <img src="docs/figures/box_counting.png" width="48%" alt="Box-counting dimension fit">
+</p>
+
+![Deterministic vs noisy bifurcation diagram](docs/figures/noise.png)
+
+*Additive complex Gaussian noise (σ = 0.005 per round trip) blurs the high-order period doublings and periodic windows. Noise samples come from a counter-based RNG, so this figure reproduces bit for bit from its seed.*
+
+## Results: the performance
 
 Hardware: **NVIDIA Quadro RTX 5000 Max-Q** (Turing, sm_75, 48 SMs, 16 GB) and **Intel Core i7-9750H** (6 cores / 12 threads, 2.6 GHz), running under WSL2 on Ubuntu 24.04, with CUDA 13.3, GCC 13.3 `-O3 -march=native`, and OpenMP.
 Workload: N values of B, 1000 map iterations each, Lyapunov exponent included (store-orbit off, so the run measures compute).
@@ -58,35 +120,9 @@ Baselines too slow to run at N = 2²⁰:
 
 Raw data: [`benchmarks/results/latest.csv`](benchmarks/results/latest.csv).
 
-### Physics
+## Talk
 
-Computed with `ikeda_thresholds` (Newton continuation of periodic orbits, A = 1, p = 6, φ = 0.4):
-
-| Quantity | Value |
-|---|---|
-| B₁: fixed point → period 2 | 0.4027006301 |
-| B₂: period 2 → 4 | 0.5916237064 |
-| B₃: period 4 → 8 | 0.6346773712 |
-| B₄: period 8 → 16 | 0.6438446321 |
-| B₅: period 16 → 32 | 0.6457823868 |
-| B₆: period 32 → 64 | 0.6461976806 |
-| Feigenbaum ratio δₖ = (Bₖ − Bₖ₋₁)/(Bₖ₊₁ − Bₖ) | 4.388, 4.697, 4.731, **4.666** (δ = 4.6692, so 99.9%) |
-| CW bistability threshold B_cw (three steady states appear) | 0.7083763219 |
-| Lyapunov exponents at B = 0.9 (2·10⁷ round trips) | λ₁ = 0.5075, λ₂ = 2 ln B − λ₁ = −0.7182 (Sprott & Xiong 2015: 0.5076, −0.7183) |
-| Attractor dimension at B = 0.9: box counting D₀ / Kaplan–Yorke D_KY | 1.720 / 1.707 (Sprott & Xiong 2015: D_KY = 1.7066) |
-
-**The headline physics result.** The cavity's steady state loses stability at B₁ ≈ 0.403 and is fully chaotic past B∞ ≈ 0.6463, while CW theory predicts no instability at all until B_cw ≈ 0.708. The delayed-feedback map is therefore essential, which is Ikeda's original point.
-
-<p align="center">
-  <img src="docs/figures/attractor.png" width="48%" alt="Ikeda strange attractor density at B = 0.9">
-  <img src="docs/figures/box_counting.png" width="48%" alt="Box-counting dimension fit">
-</p>
-
-![Deterministic vs noisy bifurcation diagram](docs/figures/noise.png)
-
-*Additive complex Gaussian noise (σ = 0.005 per round trip) blurs the high-order period doublings and periodic windows. Noise samples come from a counter-based RNG, so this figure reproduces bit for bit from its seed.*
-
-**Talk:** *Optical Turbulence in the Ikeda Map: High-Performance Computing and Chaos Theory*, presented at [Theory Canada](https://cap.ca/congress-conference/theory-canada/), Université de Montréal, June 2026. **[Slides (PDF)](talk/slides.pdf)**. The LaTeX source and the scripts that regenerate every slide figure from this code are in [`talk/`](talk).
+*Optical Turbulence in the Ikeda Map: High-Performance Computing and Chaos Theory*, presented at [Theory Canada](https://cap.ca/congress-conference/theory-canada/), Université de Montréal, June 2026. **[Slides (PDF)](talk/slides.pdf)**. The LaTeX source and the scripts that regenerate every slide figure from this code are in [`talk/`](talk).
 
 ## Build and run
 
