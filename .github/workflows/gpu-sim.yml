@@ -1,0 +1,69 @@
+name: GPU simulator
+
+# Optional, non-required check. The hosted runners have no GPU, so this runs
+# the GPU-vs-CPU sweep tests (tests/test_sweep_gpu.cpp), which the CUDA compile
+# job has to skip, on a simulated NVIDIA H100
+# (https://github.com/pantheongpu/pantheonsim). A simulator cannot reproduce
+# hardware-specific behavior or timing, so it complements real-GPU testing and
+# does not replace it.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "include/**"
+      - "src/**"
+      - "tests/**"
+      - "CMakeLists.txt"
+      - "CMakePresets.json"
+      - ".github/workflows/gpu-sim.yml"
+
+concurrency:
+  group: gpu-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  gpu-tests:
+    name: GPU tests (CUDA 12.6, simulated H100)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Set up the simulated GPU and CUDA toolkit
+        uses: pantheongpu/setup-pantheonsim@deff5781e8adfd83dec98dd5242dcbc96a564773 # v0.1.10
+        with:
+          gpu: nvidia/h100
+          cuda-toolkit: "12.6"
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends cmake
+
+      # The simulator runs PTX, so 90-virtual (compute_90 PTX only) replaces
+      # the default "native" architecture, and it needs a shared CUDA runtime.
+      - name: Configure
+        run: >
+          cmake --preset release -DIKEDA_ENABLE_CUDA=ON -DIKEDA_NATIVE_CPU=OFF
+          -DCMAKE_CUDA_ARCHITECTURES=90-virtual -DCMAKE_CUDA_RUNTIME_LIBRARY=Shared
+
+      - name: Build
+        run: cmake --build --preset release --target ikeda_gpu_tests -j3
+
+      # The GPU tests skip themselves when no device is found, so a skipped
+      # test or a missing device line must fail the job, as must any simulator
+      # error. All 8 tests have to really run on the simulated device.
+      - name: Run the GPU tests
+        run: |
+          set -o pipefail
+          vgpu run ./build/tests/ikeda_gpu_tests 2>&1 | tee gpu_tests.log
+          grep -q 'virtual GPU platform initialized' gpu_tests.log
+          grep -q '^\[  PASSED  \] 8 tests' gpu_tests.log
+          if grep -E 'VirtualGPU error|no CUDA|no device|SKIPPED|FAILED|CUDA error' gpu_tests.log; then
+            echo "unexpected output"; exit 1
+          fi
